@@ -6,11 +6,9 @@ import torch.nn.functional as F
 from torch import  nn
 
 import eeg_util
-from gnn_models import *
 from eeg_util import DLog
 
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
-
 
 class FocalLoss(nn.Module):
     def __init__(self, celoss=None, alpha=1, gamma=2):
@@ -150,91 +148,6 @@ class CNNEncoder1d(nn.Module):
 
         return x
 
-class CNNEncoder(nn.Module):
-    def __init__(self, in_dim, hid_dim, out_dim, dropout=0.6):
-        super(CNNEncoder, self).__init__()
-
-        b1_dim = int(hid_dim/2)
-        self.b1 = nn.Sequential(nn.Conv1d(in_dim, hid_dim, kernel_size=3, stride=2),
-                  nn.ReLU(),
-                  nn.Conv1d(hid_dim, b1_dim, kernel_size=1),
-                  nn.ReLU(),
-                  nn.BatchNorm1d(b1_dim),
-                  nn.Dropout(dropout))
-
-        self.b2 = nn.Sequential(nn.Conv1d(b1_dim, b1_dim, kernel_size=3, stride=1),
-                  nn.ReLU(),
-                  nn.Conv1d(b1_dim, b1_dim, kernel_size=1),
-                  nn.ReLU(),
-                  nn.BatchNorm1d(b1_dim),
-                  nn.Dropout(dropout))
-        b2_dim = int(b1_dim/2)
-        self.b3 = nn.Sequential(nn.Conv1d(b1_dim, b2_dim, kernel_size=3, stride=1),
-                  nn.ReLU(),
-                  nn.Conv1d(b2_dim, b2_dim, kernel_size=1),
-                  nn.ReLU(),
-                  nn.BatchNorm1d(b2_dim),
-                  nn.Dropout(dropout))
-
-        self.cnn_out_len = self.cal_cnn_outlen(34)
-        self.l1 = nn.Linear(b2_dim*self.cnn_out_len, out_dim)
-        DLog.log('CNNEncoder out len:', self.cnn_out_len)
-        
-
-    def cal_cnn_outlen(self, in_len):
-        conv_l = in_len
-        for m in self.modules():
-            if isinstance(m, nn.Conv1d):
-                conv_l = conv_L(in_len, m.kernel_size[0], m.stride[0], m.padding[0])
-                DLog.log('conv len:', conv_l)
-                in_len = conv_l
-        return conv_l
-
-    def forward(self, x):
-        """
-        input x: (B * N, C, T) : [32 * 20, 244, 34]
-        outout x:
-        """
-        x = self.b1(x)
-        x = self.b2(x)
-        x = self.b3(x)
-        x = self.l1(torch.flatten(x, start_dim=1))
-        return x
-
-    def reset_parameters(self):
-        self.b1.reset_parameters()
-        self.b2.reset_parameters()
-        self.b3.reset_parameters()
-        self.l1.reset_parameters()
-
-
-class GraphGenerator(nn.Module):
-    def __init__(self, N, dim_in, args):
-        super(GraphGenerator, self).__init__()
-        self.N = N
-        # self.W1 = nn.Parameter(torch.rand(dim_in, args.encoder_hid_dim))
-        # self.W2 = nn.Parameter(torch.rand(args.encoder_hid_dim, 1))
-        
-        self.adj_w = nn.Parameter(torch.rand(N, N))
-        self.reset_parameters()
-
-    def reset_parameters(self):
-        nn.init.kaiming_normal_(self.adj_w)
-        
-    def foward(self, z):
-        """
-        input z: N x F
-        output adj_z: N x N
-        """
-        # N, C = z.shape
-        # zz = z.repeat(1, N) * (z.flatten())
-        # zz = zz.reshape(N*N, C)
-        # q = F.relu(torch.mm(zz,self.W1))
-        # q = F.dropout(q, p=0.3)
-        # q = torch.sigmoid(q.mm(self.W2).reshape(N, N))
-        
-        return self.adj_w
-
 
 class GraphConv(nn.Module):
     def __init__(self, N, in_dim, out_dim, dropout):
@@ -277,13 +190,9 @@ class MultilayerGNN(nn.Module):
         """
         input x shape: B*NC
         """
-        # B = x.shape[0]
         for gnn in self.gnns:
             x = gnn(x, adj)
         
-        # if self.g_pooling is not None:
-        #     x = self.g_pooling(x)
-        #     x = x.reshape(B, -1)
         DLog.debug('MultilayerGNN out shape:', x.shape)
         
         return x
@@ -292,7 +201,6 @@ class MultilayerGNN(nn.Module):
 class GNNDecoder(nn.Module):
     def __init__(self, N, args, in_dim, out_dim):
         super(GNNDecoder, self).__init__()
-        # self.gnn = GraphSAGE(in_dim, args.gnn_hid_dim, args.decoder_out_dim, args.gnn_layer_num, args.dropout)
         self.gnns = nn.ModuleList()
         self.args = args
         self.N = N
@@ -462,13 +370,9 @@ class AttGraphPooling(nn.Module):
         att = torch.softmax(att, dim=1)
         DLog.debug('att shape', att.shape)
         x = torch.bmm(att, V)  # bnc.
-        # TODO: add gated? or sum? or linear?, try 3.
         if self.args.agg_type == 'gate':
-        # NOTE: method1: gated
             x = torch.einsum('bnc, n -> bc', x, self.gate)
-        # NOTE: method2:cat
         elif self.args.agg_type == 'cat':
-        # NOTE: method3:sum
             x = torch.flatten(x, start_dim=1)
         elif self.args.agg_type == 'sum':
             x = torch.sum(x, dim=1)
@@ -483,41 +387,6 @@ class AttGraphPooling(nn.Module):
         if self.args.agg_type == 'gate':
             nn.init.normal_(self.gate, mean=0.01, std=0.01)
         
-
-class FCDecoder(nn.Module):
-    def __init__(self, args, in_dim, N, out_dim):
-        super(FCDecoder, self).__init__()
-        self.fc = nn.Sequential(
-                nn.Linear(in_dim * N, out_dim)
-                # nn.ReLU(),
-                # nn.Dropout(args.dropout),
-                # nn.Linear(512, out_dim),
-                # nn.ReLU(),
-                # nn.Dropout(args.dropout)
-            )
-    
-    def forward(self, x):
-        x = torch.flatten(x, start_dim=1)
-        x = self.fc(x)
-        return x
-
-class GNNFCDecoder(nn.Module):
-    def __init__(self, args, gnn_decoder, fc_decoder):
-        super(GNNFCDecoder, self).__init__()
-        self.args = args
-        self.gnn_decoder = gnn_decoder
-        self.fc_decoder = fc_decoder
-
-    def forward(self, adj, x):
-        x1 = self.gnn_decoder(adj, x)
-        x2 = self.fc_decoder(x)
-        DLog.debug('GNNFCDecoder x1 shape:', x1.shape)
-        DLog.debug('GNNFCDecoder x2 shape:', x2.shape)
-        # concat:
-        x = torch.cat([x1, x2], dim=1)
-        DLog.debug('GNNFCDecoder x shape:', x.shape)
-
-        return x
 
 class DecoderAdapter(nn.Module):
     def __init__(self, args, gnn_decoder=None, cnn_decoder=None):
@@ -548,39 +417,6 @@ class DecoderAdapter(nn.Module):
         return x
 
 
-
-class TestDecoder(nn.Module):
-    def __init__(self, args, N, in_dim, out_dim, width_len=13):
-        super(TestDecoder, self).__init__()
-        self.args = args
-        self.N = N
-        self.in_dim = in_dim
-        self.gate = nn.Parameter(torch.Tensor(self.N))
-        if args.decoder_type=='fc':
-            self.test_decoder = FCDecoder(args, in_dim, N, out_dim)
-        else:
-            self.cnns = CNNEncoder2d(in_dim, args.decoder_hid_dim, out_dim, width=width_len, height=self.N, stride=2, layers=3, dropout=args.dropout)
-
-    def forward(self, adj, x):
-        B, T, N, C = x.shape
-        DLog.debug('test decoder in shape:', x.shape)
-        x = x.permute(0, 3, 2, 1) # BCNT
-
-        # 1. test concate  # bad
-        # return x.reshape(B, -1) 
-        # 2. test gated.
-        # x = torch.einsum('bnc, n -> bc', x, self.gate)
-        # x = x / self.N
-        # 3. 1d cnn for node-wise.
-        
-        # 4. NOTE pooling. topK pooling
-        # x = torch.topk(x, 5, dim=1)
-        # NOTE: 5. cnn decoder
-        if self.args.decoder_type=='fc':
-            x = self.test_decoder(x)
-        else:
-            x = self.cnns(x)
-        return x
 
 class LSTMEncoder(nn.Module):
     def __init__(self, args, in_dim, hid_dim, out_dim, bidirect=False):
@@ -705,7 +541,6 @@ class GGN(nn.Module):
             if args.bidirect:
                 decoder_in_dim *= 2
             de_out_dim = args.decoder_out_dim
-            encoder_out_width = 34
             
         elif args.encoder == 'cnn2d':
             cnn = CNNEncoder2d(in_dim=args.feature_len, 
@@ -716,7 +551,6 @@ class GGN(nn.Module):
             de_out_dim = args.decoder_out_dim
         else:
             self.encoder = MultiEncoders(args, args.feature_len, en_hid_dim, en_out_dim)
-            encoder_out_width = self.encoder.width_len
             decoder_in_dim = en_out_dim * 2
             de_out_dim = args.decoder_out_dim + decoder_in_dim
 
@@ -735,14 +569,6 @@ class GGN(nn.Module):
             self.decoder = GNNDecoder(self.N, args, decoder_in_dim, de_out_dim)
             if args.agg_type == 'cat':
                 de_out_dim *= self.N
-        elif args.decoder == 'gnn_fc':
-            if args.cut_encoder_dim > 0:
-                decoder_in_dim *= args.cut_encoder_dim
-            print('decode_out:', de_out_dim)
-            gnn = GNNDecoder(self.N, args, decoder_in_dim, de_out_dim)
-            fc = FCDecoder(args, decoder_in_dim, self.N, de_out_dim)
-            self.decoder = GNNFCDecoder(args, gnn, fc)
-            de_out_dim *= 2
         elif args.decoder == 'gnn_cnn':
             gnn = GNNDecoder(self.N, args, decoder_in_dim, args.gnn_out_dim)
             cnn_in_dim = decoder_in_dim
@@ -756,18 +582,11 @@ class GGN(nn.Module):
                     de_out_dim += args.gnn_out_dim * 34
                 else:
                     de_out_dim += args.gnn_out_dim
-        elif args.decoder == 'cnn2d':
-            cnn = CNNEncoder2d(decoder_in_dim, args.decoder_hid_dim, de_out_dim, 
-                            width=34, height=self.N, stride=2, layers=3, dropout=args.dropout)
-            self.decoder = DecoderAdapter(args, None, cnn)
-        elif args.decoder.upper() == 'NONE':
+        else:
             self.decoder = None
             de_out_dim = decoder_in_dim * self.N
-        else:
-            self.decoder = TestDecoder(args, self.N, decoder_in_dim, de_out_dim, width_len=encoder_out_width)
-        self.graphG = GraphGenerator(self.N, en_out_dim, args)
-        
-        
+            
+            
         self.predictor = ClassPredictor(de_out_dim, hidden_channels=args.predictor_hid_dim,
                                 class_num=args.predict_class_num, num_layers=args.predictor_num, dropout=args.dropout)
 
