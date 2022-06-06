@@ -42,7 +42,7 @@ nohup python -u $proj_path/eeg_main.py \
 --server_tag=seizure \
 --data_path=$root_path/resampled \
 --dataset=TUH \
---adj_file=$proj_path/adjs/20_adj_rand3.npy \
+--adj_file=$proj_path/adjs/adj_mx_distance.npy \
 --adj_type=origin \
 --feature_len=244 \
 --cuda \

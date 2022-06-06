@@ -461,7 +461,6 @@ def load_eeg_adj(adj_filename, adjtype=None):
 
 
 
-
 class Trainer:
     def __init__(self, args, model, optimizer=None, scaler=None, criterion=nn.MSELoss(), sched=None):
         self.model = model
@@ -516,3 +515,37 @@ class FocalLoss(nn.Module):
         p = torch.exp(-loss)
         flloss = torch.mean(self.alpha * torch.pow((1-p), self.gamma) * loss)
         return flloss
+    
+def gaussian_kernel_distance(x1, x2):
+    gamma = 0.3
+    sigma = 0.5
+    
+    dist = (x1[0]-x2[0])**2 + (x1[1]-x2[1])**2 + (x1[2]-x2[2])**2
+    gk = np.exp(-dist/sigma)
+    
+    return 0 if gk < gamma else gk
+    
+    
+def raw_topology_construct():
+    nodes = {}
+    with open('graphs.txt', 'r') as f:
+        for l in f.readlines():
+            ts = l.strip().split(',')
+            x,y,z = float(ts[3]),float(ts[4]),float(ts[5])
+            name = str(ts[0].strip())
+            nodes[name.upper()] = (x,y,z)
+            
+    # cal distance
+    adj = np.ones((20, 20))
+    channel = "FP1-F7;F7-T3;T3-T5;T5-O1;FP2-F8;F8-T4;T4-T6;T6-O2;T3-C3;C3-CZ;CZ-C4;C4-T4;FP1-F3;F3-C3;C3-P3;P3-O1;FP2-F4;F4-C4;C4-P4;P4-O2"
+    channels = [s.split("-")[0].upper() for s in channel.strip().split(';')]
+    for i in range(20):
+        for j in range(20):
+            adj[i, j] = gaussian_kernel_distance(nodes[channels[i]], nodes[channels[j]])
+    print(adj)
+    np.save('adj_mx_distance.npy',adj)
+    print(np.sum(adj>0)/2-20)
+    
+            
+if __name__ == '__main__':
+    raw_topology_construct()
