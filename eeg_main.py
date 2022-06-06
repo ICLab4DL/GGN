@@ -555,7 +555,7 @@ def train_eeg(args, datasets, index=0):
     date_dir = time.strftime('%Y%m%d', time.localtime(time.time()))
     fig_save_dir = os.path.join(basedir, date_dir)
     if not os.path.exists(fig_save_dir):
-        os.mkdir(fig_save_dir)
+        os.makedirs(fig_save_dir)
     confused_fig_dir = os.path.join(fig_save_dir, f'{file_tag}_{index}_confusion.png')
     loss_fig_dir = os.path.join(basedir, date_dir, f'{file_tag}_{index}_loss.png')
     
@@ -669,7 +669,7 @@ def testing(args, dataloaders, test_model, batch=False):
     date_dir = time.strftime('%Y%m%d', time.localtime(time.time()))
     fig_save_dir = os.path.join(basedir, date_dir)
     if not os.path.exists(fig_save_dir):
-        os.mkdir(fig_save_dir)
+        os.makedirs(fig_save_dir)
     confused_fig_dir = os.path.join(fig_save_dir, f'testing_confusion_map_{file_tag}.png')
     
     preds_b = preds.argmax(dim=1)
