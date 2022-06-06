@@ -31,6 +31,9 @@ sh training.sh data_path=xxx lr=0.00002`
 
 ## Training compared models
 
+To train compared models, chanage the `--task=ggn` to following settings:
+
+
 1. `sh training.sh --task=cnnnet`, training CNN based model.
 1. `sh training.sh --task=gnnnet`, training GNN based model.
 1. `sh training.sh --task=transformer`, training Transformer based model.

@@ -32,9 +32,9 @@ nohup python -u $proj_path/eeg_main.py \
 --seed=1992 \
 --em_train \
 --task=ggn \
---runs=1 \
+--runs=10 \
 --batch_size=32 \
---epochs=1 \
+--epochs=100 \
 --weighted_ce=prop \
 --lr=0.00005 \
 --dropout=0.5 \
