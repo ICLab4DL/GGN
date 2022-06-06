@@ -23,17 +23,17 @@ the shuffled_index.npy stored the indices of training samples and testing sample
 
 ## Training GGN
 
-1. config the data path and trained model path in the file start_train.sh
-2. `sh start_train.sh`
-3. or you could reset the hyperparameters in start_train.sh or just set in args, e.g.,`
-sh start_train.sh data_path=xxx lr=0.00002`
-1. use `sh start_train.sh kill`, to kill the running process.
+1. config the data path and trained model path in the file training.sh
+2. `sh training.sh`
+3. or you could reset the hyperparameters in training.sh or just set in args, e.g.,`
+sh training.sh data_path=xxx lr=0.00002`
+1. use `sh training.sh kill`, to kill the running process.
 
 ## Training compared models
 
-1. `sh start_train.sh --task=cnnnet`, training CNN based model.
-1. `sh start_train.sh --task=gnnnet`, training GNN based model.
-1. `sh start_train.sh --task=transformer`, training Transformer based model.
+1. `sh training.sh --task=cnnnet`, training CNN based model.
+1. `sh training.sh --task=gnnnet`, training GNN based model.
+1. `sh training.sh --task=transformer`, training Transformer based model.
 
 
 ## Turn on debug log mode

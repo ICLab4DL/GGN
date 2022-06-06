@@ -17,10 +17,10 @@ from torch.utils.tensorboard import SummaryWriter
 from torch import optim
 from torch import nn
 
-from seizure_models import GGN, FocalLoss, Trainer
+from models.ggn import GGN
 from eeg_util import *
 import eeg_util
-from baseline_models import *
+from models.baseline_models import *
 
 
 import networkx as nx
@@ -252,7 +252,6 @@ def generate_dataloader(features, labels, args, independent, subj_id=14, shuffle
                 train_features.append(features[i])
                 train_labels.append(labels[i])
     else:
-        # TODO: adopt on SEED_IV
         for i in range(len(features)):
             train_features.append(features[i][:27, ...])
             train_labels.append(labels[i][:27, ...])

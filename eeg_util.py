@@ -7,12 +7,8 @@ import pandas as pd
 import scipy.sparse as sp
 import torch
 from scipy.sparse import linalg
-import seaborn as sns
-from sklearn.metrics import confusion_matrix
-from minepy import pstats, cstats
-from scipy.stats import norm
-import scipy.stats as stats
 
+from torch import  nn
 
 
 
@@ -222,7 +218,6 @@ class SeqDataLoader(object):
         self.current_ind = 0
 
         def _wrapper():
-            # TODO: Bug, we need to add more conditions.
             start_ind = 0
             end_ind = 0
             while self.current_ind < self.num_batch and start_ind <= end_ind and start_ind <= self.size:
@@ -420,37 +415,6 @@ def mask_and_fillna(loss, mask):
     return torch.mean(loss)
 
 
-def calc_tstep_metrics(model, test_loader, scaler, realy, seq_length) -> pd.DataFrame:
-    model.eval()
-    outputs = []
-    for _, (x, __) in enumerate(test_loader.get_iterator()):
-        testx = torch.Tensor(x).cuda().transpose(1, 3)
-        with torch.no_grad():
-            preds = model(testx).transpose(1, 3)
-        outputs.append(preds.squeeze(1))
-    yhat = torch.cat(outputs, dim=0)[:realy.size(0), ...]
-    test_met = []
-
-    for i in range(seq_length):
-        pred = scaler.inverse_transform(yhat[:, :, i])
-        pred = torch.clamp(pred, min=0., max=70.)
-        real = realy[:, :, i]
-        test_met.append([x.item() for x in calc_metrics(pred, real)])
-    test_met_df = pd.DataFrame(test_met, columns=['mae', 'mape', 'rmse']).rename_axis('t')
-    return test_met_df, yhat
-
-
-def _to_ser(arr):
-    return pd.DataFrame(arr.cpu().detach().numpy()).stack().rename_axis(['obs', 'sensor_id'])
-
-
-def make_pred_df(realy, yhat, scaler, seq_length):
-    df = pd.DataFrame(dict(y_last=_to_ser(realy[:, :, seq_length - 1]),
-                           yhat_last=_to_ser(scaler.inverse_transform(yhat[:, :, seq_length - 1])),
-                           y_3=_to_ser(realy[:, :, 2]),
-                           yhat_3=_to_ser(scaler.inverse_transform(yhat[:, :, 2]))))
-    return df
-
 
 def correlation_map(data):
     data = np.array(data)
@@ -494,3 +458,61 @@ def load_eeg_adj(adj_filename, adjtype=None):
         return adj_mx
 
     return adj[0]
+
+
+
+
+class Trainer:
+    def __init__(self, args, model, optimizer=None, scaler=None, criterion=nn.MSELoss(), sched=None):
+        self.model = model
+        self.args = args
+        self.criterion = criterion
+        self.optimizer = optimizer
+        self.scaler = scaler
+        self.clip = args.clip
+        self.lr_decay_rate = args.lr_decay_rate
+        self.epochs = args.epochs
+        self.scheduler = sched
+
+    def lr_schedule(self):
+        self.scheduler.step()
+
+    def train(self, input_data, target, epoch=-1):
+        self.model.train()
+        self.optimizer.zero_grad()
+
+        # train
+        output = self.model(input_data, 'train')
+        if self.args.em_train:
+            self.model.alternative_freeze_grad(epoch)
+
+        output = output.squeeze()
+        loss = calc_metrics_eeg(output, target, self.criterion)
+        loss.backward(retain_graph=True)
+        self.optimizer.step()
+        return loss.item(), output.detach()
+
+    def eval(self, input_data, target):
+        self.model.eval()
+
+        output = self.model(input_data)  # [batch_size,seq_length,num_nodes]
+        output = output.squeeze()
+        loss = calc_metrics_eeg(output, target, self.criterion)
+        return loss.item(), output.detach()
+
+
+class FocalLoss(nn.Module):
+    def __init__(self, celoss=None, alpha=1, gamma=2):
+        super(FocalLoss, self).__init__()
+        self.celoss = celoss
+        self.alpha = alpha
+        self.gamma = gamma
+
+    def forward(self, inputs, targets):
+        if self.celoss is None:
+            loss = F.cross_entropy(inputs,  targets, reduce=False)
+        else:
+            loss = self.celoss(inputs,  targets)
+        p = torch.exp(-loss)
+        flloss = torch.mean(self.alpha * torch.pow((1-p), self.gamma) * loss)
+        return flloss
