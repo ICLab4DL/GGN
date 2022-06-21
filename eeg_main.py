@@ -62,12 +62,11 @@ def load_tuh_data(args, feature_name=""):
 
 
     if args.testing:
+        print('loading shuffled index!!!!!!')
         shuffled_index = np.load('shuffled_index.npy')
     else:
         # shuffle:
         shuffled_index = np.random.permutation(np.arange(feature.shape[0]))
-        np.save('./shuffled_index', shuffled_index)
-        print('saved shuffle index')
     print('shuffled_index:', shuffled_index)
     
     
@@ -325,30 +324,15 @@ def generate_dataloader(features, labels, args, independent, subj_id=14, shuffle
 
 
 def init_adjs(args, index=0):
-    using_corr=False
     adjs = []
-    if using_corr:
-        chans = datasets['train_loader'].xs
-        print(chans.shape) #  405, 5, 62, 210
-        adjs = []
-        for c in range(1):
-            normed_chans = []
-            for s in range(0, 15, 15):
-                for i in range(0, 9, 9):
-                    normed_chans.append(chans[s+i, c,:,:].transpose(1, 0).cpu().detach().numpy())
-            normed_chans_len = len(normed_chans)
-            mean_corr = sum(get_corrs([global_mmnorm(nc) for nc in normed_chans]))/ normed_chans_len
-            adjs.append(mean_corr)
-        print('adjs len: ', len(adjs))
-        print(adjs[0])
+   
+    if args.adj_type == 'rand10':
+        adj_mx = eeg_util.generate_rand_adj(0.1*(index+1), N=20)
+    elif args.adj_type == 'er':
+        adj_mx = nx.to_numpy_array(nx.erdos_renyi_graph(20, 0.1*(index+1)))
     else:
-        if args.adj_type == 'rand10':
-            adj_mx = eeg_util.generate_rand_adj(0.1*(index+1), N=20)
-        elif args.adj_type == 'er':
-            adj_mx = nx.to_numpy_array(nx.erdos_renyi_graph(20, 0.1*(index+1)))
-        else:
-            adj_mx = load_eeg_adj(args.adj_file, args.adj_type)
-        adjs.append(adj_mx)
+        adj_mx = load_eeg_adj(args.adj_file, args.adj_type)
+    adjs.append(adj_mx)
 
     #     model = EEGEncoder(adj_mx, args, is_gpu=args.cuda)
     adj = torch.from_numpy(adjs[0]).float().cuda()

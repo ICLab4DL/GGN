@@ -70,7 +70,7 @@ class CNN2d(nn.Module):
         input x: (B C, N, T)
         outout x:
         """
-        DLog.debug('conv2d in', x.shape) 
+        DLog.debug('conv2d in', x.shape)
         x = self.b1(x)
         if self.pooling:
             x = self.pool1(x)
@@ -289,14 +289,15 @@ class GNNDecoder(nn.Module):
         nn.init.kaiming_normal_(self.adj_w)
         
 
-class DecoderAdapter(nn.Module):
+class SpatialDecoder(nn.Module):
     def __init__(self, args, gnn_decoder=None, cnn_decoder=None):
-        super(DecoderAdapter, self).__init__()
+        super(SpatialDecoder, self).__init__()
         self.args = args
         self.gnn_decoder = gnn_decoder
         self.cnn_decoder = cnn_decoder
 
     def forward(self, adj, x):
+        # ([32, 34, 20, 64]) B T N C  # input.
         if isinstance(adj, list):
             x1 = []
             for t in range(len(adj)):
@@ -306,13 +307,13 @@ class DecoderAdapter(nn.Module):
             x1 = torch.flatten(x1, start_dim=1)
         else:
             x1 = self.gnn_decoder(adj, x[:,-1, :, :]) # only take last hidden
-        # ([32, 34, 20, 64]) B T N C  # input.
         # to BCNT
         DLog.debug('DecoderAdapter x1 shape:', x1.shape)
-        x = x.transpose(3, 1)
-        x2 = self.cnn_decoder(x)
-        DLog.debug('DecoderAdapter x2 shape:', x2.shape)
-        # try concate
-        x = torch.cat([x1, x2], dim=1)
-        DLog.debug('DecoderAdapter out shape:', x.shape)
+        if self.cnn_decoder is not None:
+            x = x.transpose(3, 1)
+            x2 = self.cnn_decoder(x)
+            DLog.debug('DecoderAdapter x2 shape:', x2.shape)
+            # try concate
+            x = torch.cat([x1, x2], dim=1)
+        DLog.debug('SpatialDecoder out shape:', x.shape)
         return x

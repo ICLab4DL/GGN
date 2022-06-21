@@ -9,10 +9,13 @@ from __future__ import division
 from __future__ import print_function
 
 import numpy as np
+import random
+
 import torch
 import torch.nn as nn
 from torch.functional import F
-import random
+from torch_geometric.nn import GATConv
+
 
 from eeg_util import DLog
 
@@ -969,3 +972,83 @@ class Transformer(Module):
         return output
 
         # return output, encoding, score_input, score_channel, input_to_gather, channel_to_gather, gate
+        
+        
+"""
+Graph attention network implementation similar to https://arxiv.org/abs/1710.10903.
+"""
+class GraphAttentionLayer(nn.Module):
+    """
+    Original implementation cannot support minibatch x, we re-implement it to support.
+    Simple GAT layer, similar to https://arxiv.org/abs/1710.10903
+    """
+    def __init__(self, in_features, out_features, dropout, alpha, concat=True):
+        super(GraphAttentionLayer, self).__init__()
+        self.dropout = dropout
+        self.in_features = in_features
+        self.out_features = out_features
+        self.alpha = alpha
+        self.concat = concat
+
+        self.W = nn.Parameter(torch.empty(size=(in_features, out_features)))
+        nn.init.xavier_uniform_(self.W.data, gain=1.414)
+        self.a = nn.Parameter(torch.empty(size=(2*out_features, 1)))
+        nn.init.xavier_uniform_(self.a.data, gain=1.414)
+        self.attention = None
+
+        self.leakyrelu = nn.LeakyReLU(self.alpha)
+
+    def forward(self, h, adj):
+        # re-implement it to support batch:
+        Wh = torch.matmul(h, self.W) # h.shape: (B, N, in_features), Wh.shape: (B, N, out_features)
+        e = self._prepare_attentional_mechanism_input(Wh)
+
+        zero_vec = -9e15*torch.ones_like(e)
+        attention = torch.where(adj > 0, e, zero_vec)
+        attention = F.softmax(attention, dim=2)
+        attention = F.dropout(attention, self.dropout, training=self.training)
+        h_prime = torch.matmul(attention, Wh)
+        self.attention = attention
+
+        if self.concat:
+            return F.elu(h_prime)
+        else:
+            return h_prime
+
+    def _prepare_attentional_mechanism_input(self, Wh):
+        # Wh.shape (B, N, out_feature)
+        # self.a.shape (2 * out_feature, 1)
+        # Wh1&2.shape (B, N, 1)
+        # e.shape (B, N, N)
+        Wh1 = torch.matmul(Wh, self.a[:self.out_features, :])
+        Wh2 = torch.matmul(Wh, self.a[self.out_features:, :])
+        # broadcast add
+        e = Wh1 + Wh2.transpose(1, 2)
+        return self.leakyrelu(e)
+
+    def __repr__(self):
+        return self.__class__.__name__ + ' (' + str(self.in_features) + ' -> ' + str(self.out_features) + ')'
+
+"""
+Multi-head GAT
+"""
+class GAT(nn.Module):
+    def __init__(self, in_dim, hid_dim, out_dim, dropout=0.6, alpha=0.2, nheads=8, pooling=None):
+        """Dense version of GAT."""
+        super(GAT, self).__init__()
+        self.dropout = dropout
+        self.g_pooling = pooling
+        self.attentions = [GraphAttentionLayer(in_dim, hid_dim, dropout=dropout, alpha=alpha, concat=True) for _ in range(nheads)]
+        for i, attention in enumerate(self.attentions):
+            self.add_module('attention_{}'.format(i), attention)
+            
+        self.out_att = GraphAttentionLayer(hid_dim * nheads, out_dim, dropout=dropout, alpha=alpha, concat=True)
+
+    def forward(self, adj, x):
+        x = F.dropout(x, self.dropout, training=self.training)
+        x = torch.cat([att(x, adj) for att in self.attentions], dim=2)  # concate node features from different heads.
+        x = F.dropout(x, self.dropout, training=self.training)
+        x = F.elu(self.out_att(x, adj)) # BNC
+        if self.g_pooling is not None:
+            x = self.g_pooling(x) # BC
+        return x

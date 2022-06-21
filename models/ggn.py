@@ -3,9 +3,12 @@ import os
 import torch
 import torch.nn.functional as F
 from torch import  nn
+from torch_scatter import scatter_mean, scatter, scatter_add, scatter_max
+from torch_geometric.nn.conv import MessagePassing
 
 import eeg_util
 from eeg_util import DLog
+from models.baseline_models import GAT
 from models.graph_conv_layer import *
 from models.encoder_decoder import *
 
@@ -20,7 +23,6 @@ class GGN(nn.Module):
         self.adj_eps = 0.1
         self.adj = adj
         self.adj_x = adj
-        self.adj_0 = self.adj_to_coo_longTensor(adj)
 
         self.N = adj.shape[0]
         print('N:', self.N)
@@ -58,12 +60,11 @@ class GGN(nn.Module):
 
         if args.gnn_adj_type == 'rand':
             self.adj = None
-            self.adj_0 = None
+            self.adj_tensor = None
 
         if args.lgg:
             self.LGG = LatentGraphGenerator(args, adj, args.lgg_tau, decoder_in_dim, args.lgg_hid_dim,
                                         args.lgg_k)
-
 
         if args.decoder == 'gnn':
             if args.cut_encoder_dim > 0:
@@ -71,12 +72,25 @@ class GGN(nn.Module):
             self.decoder = GNNDecoder(self.N, args, decoder_in_dim, de_out_dim)
             if args.agg_type == 'cat':
                 de_out_dim *= self.N
-        elif args.decoder == 'gnn_cnn':
+        elif args.decoder == 'gat_cnn':
+            # adj_coo = eeg_util.torch_dense_to_coo_sparse(adj)
+            self.adj_x =  torch.ones((self.N, self.N)).float().cuda()
+            print('gat adj_x: ', self.adj_x)
+            g_pooling = GateGraphPooling(args, self.N)
+            gnn = GAT(decoder_in_dim, args.gnn_hid_dim, de_out_dim, 
+                               dropout=args.dropout, pooling=g_pooling)
+            cnn_in_dim = decoder_in_dim
+            cnn = CNN2d(cnn_in_dim, args.decoder_hid_dim, de_out_dim,
+                            width=34, height=self.N, stride=2, layers=3, dropout=args.dropout)
+            self.decoder = SpatialDecoder(args, gnn, cnn)
+            de_out_dim *= 2
+            
+        elif args.decoder == 'lgg_cnn':
             gnn = GNNDecoder(self.N, args, decoder_in_dim, args.gnn_out_dim)
             cnn_in_dim = decoder_in_dim
             cnn = CNN2d(cnn_in_dim, args.decoder_hid_dim, de_out_dim,
                             width=34, height=self.N, stride=2, layers=3, dropout=args.dropout)
-            self.decoder = DecoderAdapter(args, gnn, cnn)
+            self.decoder = SpatialDecoder(args, gnn, cnn)
             if args.agg_type == 'cat':
                 de_out_dim += args.gnn_out_dim * self.N
             else:
@@ -181,9 +195,9 @@ class GGN(nn.Module):
                         if self.epoch < self.warmup:
                             adj_x = self.LGG(x_t, self.adj)
                         else:
-                            adj_x = self.LGG(x_t)
+                            adj_x = self.LGG(x_t, self.adj)
                     else:
-                        adj_x = self.LGG(x_t)
+                        adj_x = self.LGG(x_t, self.adj)
                         DLog.debug('Model is Eval!!!!!!!!!!!!!!!!!')
                     adj_x_times.append(adj_x)
                 self.adj_x = adj_x_times
@@ -192,12 +206,11 @@ class GGN(nn.Module):
                 if self.training and self.epoch < self.warmup:
                     self.adj_x = self.LGG(x_t, self.adj)
                 else:
-                    self.adj_x = self.LGG(x_t)
+                    self.adj_x = self.LGG(x_t, self.adj)
                     DLog.debug('Model is Eval!!!!!!!!!!!!!!!!!')
 
         # (3) decoder:
         DLog.debug('decoder input shape:', x.shape)
-        
         x = self.decode(x, B, N, self.adj_x)
         DLog.debug('decoder output shape:', x.shape)
 
@@ -244,6 +257,159 @@ class ClassPredictor(torch.nn.Module):
         return x
 
 
+class WalkPooling(MessagePassing):
+    def __init__(self, in_channels: int, hidden_channels: int, heads: int = 1,\
+                 walk_len: int = 6, cuda=True):
+        super(WalkPooling, self).__init__()
+
+        self.hidden_channels = hidden_channels
+        self.heads = heads
+        self.walk_len = walk_len
+        self.device = torch.device("cuda:0" if cuda else "cpu")  
+        # the linear layers in the attention encoder
+        self.lin_key1 = nn.Linear(in_channels, hidden_channels)
+        self.lin_query1 = nn.Linear(in_channels, hidden_channels)
+        self.lin_key2 = nn.Linear(hidden_channels, heads * hidden_channels)
+        self.lin_query2 = nn.Linear(hidden_channels, heads * hidden_channels)
+    def attention_mlp(self, x, edge_index):
+    
+        query = self.lin_key1(x).reshape(-1,self.hidden_channels)
+        key = self.lin_query1(x).reshape(-1,self.hidden_channels)
+
+        query = F.leaky_relu(query,0.2)
+        key = F.leaky_relu(key,0.2)
+
+        query = F.dropout(query, p=0.5, training=self.training)
+        key = F.dropout(key, p=0.5, training=self.training)
+
+        query = self.lin_key2(query).view(-1, self.heads, self.hidden_channels)
+        key = self.lin_query2(key).view(-1, self.heads, self.hidden_channels)
+
+        row, col = edge_index
+        weights = (query[row] * key[col]).sum(dim=-1) / np.sqrt(self.hidden_channels)
+        
+        return weights
+
+    def weight_encoder(self, x, edge_index, edge_mask):        
+     
+        weights = self.attention_mlp(x, edge_index)
+    
+        omega = torch.sigmoid(weights[torch.logical_not(edge_mask)])
+        
+        row, col = edge_index
+        num_nodes = torch.max(edge_index)+1
+
+        # edge weights of the plus graph
+        weights_p = F.softmax(weights,edge_index[1])
+
+        # edge weights of the minus graph
+        weights_m = weights - scatter_max(weights, col, dim=0, dim_size=num_nodes)[0][col]
+        weights_m = torch.exp(weights_m)
+        weights_m = weights_m * edge_mask.view(-1,1)
+        norm = scatter_add(weights_m, col, dim=0, dim_size=num_nodes)[col] + 1e-16
+        weights_m = weights_m / norm
+
+        return weights_p, weights_m, omega
+
+    def forward(self, x, edge_index, edge_mask, batch):
+        device = self.device
+        #encode the node representation into edge weights via attention mechanism
+        weights_p, weights_m, omega = self.weight_encoder(x, edge_index, edge_mask)
+
+        # number of graphs in the batch
+        batch_size = torch.max(batch)+1
+
+        # for node i in the batched graph, index[i] is i's id in the graph before batch 
+        index = torch.zeros(batch.size(0),1,dtype=torch.long)
+        
+        # numer of nodes in each graph
+        _, counts = torch.unique(batch, sorted=True, return_counts=True)
+        
+        # maximum number of nodes for all graphs in the batch
+        max_nodes = torch.max(counts)
+
+        # set the values in index
+        id_start = 0
+        for i in range(batch_size):
+            index[id_start:id_start+counts[i]] = torch.arange(0,counts[i],dtype=torch.long).view(-1,1)
+            id_start = id_start+counts[i]
+
+        index = index.to(device)
+        
+        #the output graph features of walk pooling
+        nodelevel_p = torch.zeros(batch_size,(self.walk_len*self.heads)).to(device)
+        nodelevel_m = torch.zeros(batch_size,(self.walk_len*self.heads)).to(device)
+        linklevel_p = torch.zeros(batch_size,(self.walk_len*self.heads)).to(device)
+        linklevel_m = torch.zeros(batch_size,(self.walk_len*self.heads)).to(device)
+        graphlevel = torch.zeros(batch_size,(self.walk_len*self.heads)).to(device)
+        # a link (i,j) has two directions i->j and j->i, and
+        # when extract the features of the link, we usually average over
+        # the two directions. indices_odd and indices_even records the
+        # indices for a link in two directions
+        indices_odd = torch.arange(0,omega.size(0),2).to(device)
+        indices_even = torch.arange(1,omega.size(0),2).to(device)
+
+        omega = torch.index_select(omega, 0 ,indices_even)\
+        + torch.index_select(omega,0,indices_odd)
+        
+        #node id of the candidate (or perturbation) link
+        link_ij, link_ji = edge_index[:,torch.logical_not(edge_mask)]
+        node_i = link_ij[indices_odd]
+        node_j = link_ij[indices_even]
+
+        # compute the powers of stochastic matrix
+        for head in range(self.heads):
+
+            # x on the plus graph and minus graph
+            x_p = torch.zeros(batch.size(0),max_nodes,dtype=x.dtype).to(device)
+            x_p = x_p.scatter_(1,index,1)
+            x_m = torch.zeros(batch.size(0),max_nodes,dtype=x.dtype).to(device)
+            x_m = x_m.scatter_(1,index,1)
+
+            # propagage once
+            x_p = self.propagate(edge_index, x= x_p, norm = weights_p[:,head])
+            x_m = self.propagate(edge_index, x= x_m, norm = weights_m[:,head])
+        
+            # start from tau = 2
+            for i in range(self.walk_len):
+                x_p = self.propagate(edge_index, x= x_p, norm = weights_p[:,head])
+                x_m = self.propagate(edge_index, x= x_m, norm = weights_m[:,head])
+                
+                # returning probabilities around i + j
+                nodelevel_p_w = x_p[node_i,index[node_i].view(-1)] + x_p[node_j,index[node_j].view(-1)]
+                nodelevel_m_w = x_m[node_i,index[node_i].view(-1)] + x_m[node_j,index[node_j].view(-1)]
+                nodelevel_p[:,head*self.walk_len+i] = nodelevel_p_w.view(-1)
+                nodelevel_m[:,head*self.walk_len+i] = nodelevel_m_w.view(-1)
+  
+                # transition probabilities between i and j
+                linklevel_p_w = x_p[node_i,index[node_j].view(-1)] + x_p[node_j,index[node_i].view(-1)]
+                linklevel_m_w = x_m[node_i,index[node_j].view(-1)] + x_m[node_j,index[node_i].view(-1)]
+                linklevel_p[:,head*self.walk_len+i] = linklevel_p_w.view(-1)
+                linklevel_m[:,head*self.walk_len+i] = linklevel_m_w.view(-1)
+
+                # graph average of returning probabilities
+                diag_ele_p = torch.gather(x_p,1,index)
+                diag_ele_m = torch.gather(x_m,1,index)
+
+                graphlevel_p = scatter_add(diag_ele_p, batch, dim = 0)
+                graphlevel_m = scatter_add(diag_ele_m, batch, dim = 0)
+
+                graphlevel[:,head*self.walk_len+i] = (graphlevel_p-graphlevel_m).view(-1)
+         
+        feature_list = graphlevel 
+        feature_list = torch.cat((feature_list,omega),dim=1)
+        feature_list = torch.cat((feature_list,nodelevel_p),dim=1)
+        feature_list = torch.cat((feature_list,nodelevel_m),dim=1)
+        feature_list = torch.cat((feature_list,linklevel_p),dim=1)
+        feature_list = torch.cat((feature_list,linklevel_m),dim=1)
+
+
+        return feature_list
+
+    def message(self, x_j, norm):
+        return norm.view(-1, 1) * x_j  
+    
+    
 
 class LatentGraphGenerator(nn.Module):
     def __init__(self, args, A_0, tau, in_dim, hid_dim, K=10):
@@ -318,7 +484,6 @@ class LatentGraphGenerator(nn.Module):
 
         P = torch.sigmoid(Sim)
 
-        
         pp = torch.stack((P+0.01, 1-P + 0.01), dim=3)
         DLog.debug('min:', torch.min(pp))
         # DLog.debug('max',torch.max(pp))
