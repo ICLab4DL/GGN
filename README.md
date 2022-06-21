@@ -17,7 +17,7 @@ GGN is a generative deep learning model for epilepsy seizure classification and 
 
 the shuffled_index.npy stored the indices of training samples and testing samples of the best_model.pth.
 
-1. config the data path and trained model path in the file test.sh.
+1. config the data path and trained model path in the file testing.sh.
 1. `sh testing.sh`
 1. use `sh testing.sh kill`, to kill the running process.
 
@@ -26,7 +26,7 @@ the shuffled_index.npy stored the indices of training samples and testing sample
 1. config the data path and trained model path in the file training.sh
 2. `sh training.sh`
 3. or you could reset the hyperparameters in training.sh or just set in args, e.g.,`
-sh training.sh data_path=xxx lr=0.00002`
+sh training.sh data_path=xxx lr=0.00005`
 1. use `sh training.sh kill`, to kill the running process.
 
 ## Training compared models
@@ -40,4 +40,4 @@ To train compared models, chanage the `--task=ggn` to following settings:
 
 
 ## Turn on debug log mode
-to print more logs, add `--debug` in the args.
+to print more logs, set `--debug` in the command args.
