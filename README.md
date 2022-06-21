@@ -1,4 +1,4 @@
-GGN is a generative deep learning model for epilepsy seizure classification and detecting the disruptive functional connectiviy when seizure attacks.
+GGN is a generative deep learning model for epilepsy seizure classification and detecting the abnormal functional connectivities when seizure attacks.
 
 --- 
 
