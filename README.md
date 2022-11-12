@@ -8,7 +8,7 @@ If any code or the datasets are useful in your research, please cite the followi
 @article{li2022graph,
   title={Graph-generative neural network for EEG-based epileptic seizure detection via discovery of dynamic brain functional connectivity},
   author={Li, Zhengdao and Hwang, Kai and Li, Keqin and Wu, Jie and Ji, Tongkai},
-  journal={Scientific reports},
+  journal={Scientific Reports},
   volume={12},
   number={1},
   pages={1--15},
