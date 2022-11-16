@@ -67,4 +67,4 @@ To train compared models, chanage the `--task=ggn` to following settings:
 to print more logs, set `--debug` in the command args.
 
 
-**Message me if you have any questions: zhengdaoli (at) link (dot) cuhk (dot) edu.com**
+**Message me if you have any questions: zhengdaoli (at) link (dot) cuhk (dot) edu.cn**
