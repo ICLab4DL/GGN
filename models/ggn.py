@@ -261,7 +261,6 @@ class LatentGraphGenerator(nn.Module):
     def __init__(self, args, A_0, tau, in_dim, hid_dim, K=10):
         super(LatentGraphGenerator,self).__init__()
         self.N = A_0.shape[0] # num of nodes.
-        self.tau = tau
         self.args = args
         self.A_0 = A_0
         self.args = args
@@ -275,7 +274,7 @@ class LatentGraphGenerator(nn.Module):
         else:
             pooling = GateGraphPooling(args, self.N)
             
-        self.gumbel_tau = 0.1
+        self.gumbel_tau = tau
         self.mu_nn = MultilayerGNN(self.N, 2, pooling, in_dim, hid_dim, K, args.dropout)
         self.sig_nn = MultilayerGNN(self.N, 2, pooling, in_dim, hid_dim, K, args.dropout)
         self.pi_nn = MultilayerGNN(self.N, 2, pooling, in_dim, hid_dim, K, args.dropout)
