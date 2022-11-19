@@ -8,7 +8,7 @@ If any code or the datasets are useful in your research, please cite the followi
 @article{li2022graph,
   title={Graph-generative neural network for EEG-based epileptic seizure detection via discovery of dynamic brain functional connectivity},
   author={Li, Zhengdao and Hwang, Kai and Li, Keqin and Wu, Jie and Ji, Tongkai},
-  journal={Scientific reports},
+  journal={Scientific Reports},
   volume={12},
   number={1},
   pages={1--15},
@@ -31,7 +31,7 @@ Li, Z., Hwang, K., Li, K. et al. Graph-generative neural network for EEG-based e
 1. Access dataset TUSZ v1.5.2 from https://isip.piconepress.com/projects/tuh_eeg/ or baidu Wangpan:
  https://pan.baidu.com/s/1nzm9P6d_OZJM-v3t9wxd6w Code：3N88
 2. Preprocess the raw data following the benchmark setting from IBM: https://github.com/IBM/seizure-type-classification-tuh
-3. Composite features from different frequencies following our paper.
+3. Composite features from different frequencies following our paper (Supplementary).
 
 ---
 
@@ -39,7 +39,7 @@ Li, Z., Hwang, K., Li, K. et al. Graph-generative neural network for EEG-based e
 
 ## Testing via trained model.
 
-the shuffled_index.npy stored the indices of training samples and testing samples of the best_model.pth.
+the shuffled_index.npy stored the indices of training samples and testing samples of the best_model.pth (reported in the paper).
 
 1. config the data path and trained model path in the file testing.sh.
 1. `sh testing.sh`
@@ -65,3 +65,7 @@ To train compared models, chanage the `--task=ggn` to following settings:
 
 ## Turn on debug log mode
 to print more logs, set `--debug` in the command args.
+
+## Q&A
+
+**Message me if you have any questions: zhengdaoli (at) link (dot) cuhk (dot) edu.cn**
