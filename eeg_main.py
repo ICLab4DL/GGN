@@ -41,19 +41,6 @@ for i, k in enumerate(s_types.keys()):
     number_label_dict[i] = k
 print('labels:', label_dict)
 
-def load_data(args, dataset_dir, batch_size, shuffle=False):
-    if not os.path.exists(dataset_dir):
-        print(dataset_dir, " is not exist!!")
-        return
-    
-    feature = np.load(os.path.join(dataset_dir, "feature.npy"))
-    label = np.load(os.path.join(dataset_dir, "label.npy"))
-    print(f'{args.dataset} label shape: ', label.shape)
-    print(f'{args.dataset} feature shape', feature.shape)
-    
-    return feature, label
-
-
 def load_tuh_data(args, feature_name=""):
 
     feature = np.load(os.path.join(args.data_path, f"seizure_x{feature_name}.npy"))
@@ -110,6 +97,8 @@ def load_tuh_data(args, feature_name=""):
 
 
 def generate_tuh_data(args, file_name=""):
+    """ generate data for training or ploting functional connectivity.
+    """
     data_path = args.data_path
 
     freqs = [12]
@@ -152,35 +141,6 @@ def generate_tuh_data(args, file_name=""):
     print('y data shape:', y_data[0].shape)
     print('save done!')
 
-
-def transform_SEED(dataset_dir, batch_size):
-    import glob
-
-    features = []
-    labels = []
-    if not os.path.exists(dataset_dir):
-        print(dataset_dir, " is not exist!!")
-        return
-
-    dataset_dir += "/*"
-    print(dataset_dir)
-    for dir in glob.iglob(dataset_dir):
-        datasets = {}
-        feature = np.load(os.path.join(dir, "feature.npy"))
-        label = np.load(os.path.join(dir, "label.npy"))
-        features.append(feature)
-        print(feature.shape)
-        # label: -1, 0, 1 --->  0, 1, 2
-        labels.append(label + 1)
-    feature = np.stack(features, axis=0)
-    label = np.stack(labels, axis=0)[:,:,0,0]
-    print('SEED feature:', feature.shape)
-    print('SEED labels:', label.shape)
-    
-    np.save('/li_zhengdao/github/EEG/data/SEED/de_LDS/feature.npy', feature)
-    np.save('/li_zhengdao/github/EEG/data/SEED/de_LDS/label.npy', label)
-
-
 def normalize_seizure_features(features):
     """inplace-norm
     Args:
@@ -205,120 +165,6 @@ def generate_dataloader_seizure(features, labels, args):
 
     if len(features) < 3: # take test as validation.
         datasets['val_loader'] = SeqDataLoader(features[-1], labels[-1], args.batch_size, cuda=args.cuda)
-
-    return datasets
-
-
-def generate_dataloader(features, labels, args, independent, subj_id=14, shuffle=False):
-    # features: (Subject, Trials, N, Seq, Channel)
-    datasets = dict()
-    batch_size = args.batch_size
-    # if subject independent, then leave one subject as the test set, do the cross-validaton.
-    # and one subject as the val.
-
-
-    train_features = []
-    train_labels = []
-    val_features = []
-    val_labels = []
-    test_features = []
-    test_labels = []
-    seq_len = args.eeg_seq_len
-
-    # filtering:
-    # cut the seq:
-    features = features[:, :, :, :seq_len, :]
-
-
-    if independent:
-        print('subject independent')
-        val_index = subj_id
-        print('the val subject index: ', val_index)
-        print('the test subject index: ', subj_id)
-
-        for i in range(len(features)):
-            if i == subj_id:
-                test_features.append(features[i])
-                test_labels.append(labels[i])
-                val_features.append(features[i])
-                val_labels.append(labels[i])
-                print('test and val')
-            elif i == val_index:
-                val_features.append(features[i])
-                val_labels.append(labels[i])
-                print('only val')
-            else:
-                train_features.append(features[i])
-                train_labels.append(labels[i])
-    else:
-        for i in range(len(features)):
-            train_features.append(features[i][:27, ...])
-            train_labels.append(labels[i][:27, ...])
-            
-            val_features.append(features[i][27:, ...])
-            val_labels.append(labels[i][27:, ...])
-            
-            test_features.append(features[i][27:, ...])
-            test_labels.append(labels[i][27:,...])
-
-    train_features = np.stack(train_features, axis=0).reshape(-1, 62, seq_len, 5)
-    print('train_features :', train_features.shape)
-    train_labels = np.stack(train_labels, axis=0).reshape(-1, 1)
-    print('train_labels :', train_labels.shape)
-
-    val_features = np.stack(val_features, axis=0).reshape(-1, 62, seq_len, 5)
-    print('val_features :', val_features.shape)
-    val_labels = np.stack(val_labels, axis=0).reshape(-1, 1)
-    print('val_labels :', val_labels.shape)
-
-    test_features = np.stack(test_features, axis=0).reshape(-1, 62, seq_len, 5)
-    print('test_features :', test_features.shape)
-
-    test_labels = np.stack(test_labels, axis=0).reshape(-1, 1)
-    print('test_labels :', test_labels.shape)
-
-    #     features = np.stack(features, axis=0).reshape(15 * 45, 62, 300, 5)
-
-    #     labels = np.stack(labels, axis=0)[..., 0, 0].reshape(15 * 45, 1)  # each 62 channels have same labels.
-
-    # normalize all features
-    for i in range(5):
-        train_features[..., i] = normalize(train_features[..., i])
-        val_features[..., i] = normalize(val_features[..., i])
-        test_features[..., i] = normalize(test_features[..., i])
-
-    # temporally cut down seq to 210.
-    train_features = train_features[:, :, :args.eeg_seq_len, :]
-    val_features = val_features[:, :, :args.eeg_seq_len, :]
-    test_features = test_features[:, :, :args.eeg_seq_len, :]
-
-    print("cut features shape:", train_features.shape)
-    # shape (samples, features, node, sequence)
-    train_features = np.transpose(train_features, (0, 3, 1, 2))
-    val_features = np.transpose(val_features, (0, 3, 1, 2))
-    test_features = np.transpose(test_features, (0, 3, 1, 2))
-
-    def shuffle_f(features, labels):
-        num_samples = features.shape[0]
-        p = np.random.permutation(num_samples)
-        return features[p], labels[p]
-
-    # shuffle all samples
-    if shuffle:
-        train_features, train_labels = shuffle_f(train_features, train_labels)
-        val_features, val_labels = shuffle_f(val_features, val_labels)
-        test_features, test_labels = shuffle_f(test_features, test_labels)
-
-    print("train features shape: ", train_features.shape)
-    print("train labels shape: ", train_labels.shape)
-
-    # add additional training dataloader as validation:
-    for category in ['train', 'val', 'test']:
-        datasets[category + '_loader'] = SeqDataLoader(locals()[category + "_features"], locals()[category + "_labels"],
-                                                       args.batch_size)
-        if category == 'train':
-            datasets['train_as_val'] = SeqDataLoader(locals()[category + "_features"], locals()[category + "_labels"],
-                                                     args.batch_size)
 
     return datasets
 
@@ -614,9 +460,6 @@ def multi_train(args, tags="", runs=10):
     datasets = generate_dataloader_seizure(xs,ys,args)
     
     for i in range(runs):
-        if args.dataset != 'TUH':
-            features, labels = load_data(args, args.data_path, args.batch_size)
-            datasets = generate_dataloader(features, labels, args, args.independent, subj_id=i)
         
         tr, te = train_eeg(args, datasets, i)
         test_loss.append(te[0]['test_loss'])
