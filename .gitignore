@@ -20,7 +20,6 @@ args/
 .nfs0000*
 *.png
 *.jpg
-*.npy
 *.pkl
 # Distribution / packaging
 .Python
