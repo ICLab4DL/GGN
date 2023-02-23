@@ -22,7 +22,6 @@ args/
 *.jpg
 *.npy
 *.pkl
-adjs/
 # Distribution / packaging
 .Python
 build/
