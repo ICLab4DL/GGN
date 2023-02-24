@@ -11,9 +11,9 @@ If any code or the datasets are useful in your research, please cite the followi
   journal={Scientific Reports},
   volume={12},
   number={1},
-  pages={1--15},
+  pages={18998},
   year={2022},
-  publisher={Nature Publishing Group}
+  publisher={Nature Publishing Group UK London}
 }
 ```
 
