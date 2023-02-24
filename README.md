@@ -28,7 +28,7 @@ Li, Z., Hwang, K., Li, K. et al. Graph-generative neural network for EEG-based e
 ## Preparation for dataset. 
 
 
-1. Due to the Policy from TUH, you must apply dataset TUSZ v1.5.2 from https://isip.piconepress.com/projects/tuh_eeg/
+1. According to the Policy from TUH, you must apply dataset TUSZ v1.5.2 from https://isip.piconepress.com/projects/tuh_eeg/
 2. Preprocess the raw data following the benchmark setting from IBM: https://github.com/IBM/seizure-type-classification-tuh
 3. Composite features from different frequencies following our paper (Supplementary).
 
