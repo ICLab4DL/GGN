@@ -1,4 +1,5 @@
 # Graph‐generative neural network for EEG‐based epileptic seizure detection via discovery of dynamic brain functional connectivity
+- [paper link](https://www.nature.com/articles/s41598-022-23656-1)
 
 GGN is a generative deep learning model for epilepsy seizure classification and detecting the abnormal functional connectivities when seizure attacks.
 
