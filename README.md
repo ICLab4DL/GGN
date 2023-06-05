@@ -67,6 +67,9 @@ To train compared models, chanage the `--task=ggn` to following settings:
 1. `sh training.sh --task=gnnnet`, training GNN based model.
 1. `sh training.sh --task=transformer`, training Transformer based model.
 
+## Training logs
+
+**Note that**, we use `nohup` to run the program in background, the log path is specified in `training.sh`.
 
 ## Turn on debug log mode
 to print more logs, set `--debug` in the command args.
