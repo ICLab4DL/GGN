@@ -34,7 +34,7 @@ Li, Z., Hwang, K., Li, K. et al. Graph-generative neural network for EEG-based e
 1. According to the Policy from TUH, you must apply dataset TUSZ v1.5.2 from https://isip.piconepress.com/projects/tuh_eeg/
   (If you cannot download, you can email me.)
 2. Preprocess the raw data following the benchmark setting from IBM: https://github.com/IBM/seizure-type-classification-tuh, after that, you got fft_seizures_wl1_ws_0.25_sf_250_fft_min_1_fft_max.... files. 
-3. Composite features from different frequencies following our paper (Supplementary), set args.task == 'generate_data', check the function: generate_tuh_data in eeg_main.py.
+3. Composite features from different frequencies following our paper (Supplementary), to generate features, you could set: args.task == 'generate_data' in the training.sh file, for more details of how to generate features, please check the function: generate_tuh_data in eeg_main.py file.
 
 Details refer to the [suplementary](https://static-content.springer.com/esm/art%3A10.1038%2Fs41598-022-23656-1/MediaObjects/41598_2022_23656_MOESM1_ESM.pdf)
 
