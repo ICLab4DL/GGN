@@ -7,12 +7,13 @@ data/
 res/
 res/*
 nohup.out
-best_models/
+best_models_copy/
 board_log/
 runs/
 .idea/
 args/
 *.pth
+!ggn_best.pth
 *.json
 *.html
 # C extensions
@@ -21,6 +22,7 @@ args/
 *.png
 *.jpg
 *.npy
+!shuffled_index.npy
 *.pkl
 adjs/
 # Distribution / packaging

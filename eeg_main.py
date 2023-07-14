@@ -516,8 +516,6 @@ if __name__ == "__main__":
     random.seed(args.seed)
     torch.manual_seed(args.seed)
 
-
-
     if args.testing:
         print('Unit_test!!!!!!!!!!!!!')
         if args.arg_file != 'None':

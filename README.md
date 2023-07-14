@@ -39,9 +39,9 @@ Li, Z., Hwang, K., Li, K. et al. Graph-generative neural network for EEG-based e
 
 ## Testing via trained model.
 
-the shuffled_index.npy stored the indices of training samples and testing samples of the best_model.pth (reported in the paper).
+the shuffled_index.npy stored the indices of training samples and testing samples of the best_models/ggn_best.pth (reported in the paper).
 
-1. config the data path and trained model path in the file testing.sh.
+1. config the data path and trained model path in the file `testing.sh`.
 1. `sh testing.sh`
 1. use `sh testing.sh kill`, to kill the running process.
 
