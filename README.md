@@ -1,8 +1,9 @@
 # Graph‐generative neural network for EEG‐based epileptic seizure detection via discovery of dynamic brain functional connectivity
+- [paper link](https://www.nature.com/articles/s41598-022-23656-1)
 
 GGN is a generative deep learning model for epilepsy seizure classification and detecting the abnormal functional connectivities when seizure attacks.
 
-If any code or the datasets are useful in your research, please cite the following paper, thanks:
+If any code or the datasets are useful in your research, please cite the following paper:
 
 ```
 @article{li2022graph,
@@ -11,10 +12,12 @@ If any code or the datasets are useful in your research, please cite the followi
   journal={Scientific Reports},
   volume={12},
   number={1},
-  pages={1--15},
+  pages={18998},
   year={2022},
-  publisher={Nature Publishing Group}
+  publisher={Nature Publishing Group UK London}
 }
+
+
 ```
 
 or 
@@ -28,10 +31,12 @@ Li, Z., Hwang, K., Li, K. et al. Graph-generative neural network for EEG-based e
 ## Preparation for dataset. 
 
 
-1. Access dataset TUSZ v1.5.2 from https://isip.piconepress.com/projects/tuh_eeg/ or baidu Wangpan:
- https://pan.baidu.com/s/1nzm9P6d_OZJM-v3t9wxd6w Code：3N88
-2. Preprocess the raw data following the benchmark setting from IBM: https://github.com/IBM/seizure-type-classification-tuh
-3. Composite features from different frequencies following our paper (Supplementary).
+1. According to the Policy from TUH, you must apply dataset TUSZ v1.5.2 from https://isip.piconepress.com/projects/tuh_eeg/
+  (If you cannot download, you can email me.)
+2. Preprocess the raw data following the benchmark setting from IBM: https://github.com/IBM/seizure-type-classification-tuh, after that, you get fft_seizures_wl1_ws_0.25_sf_250_fft_min_1_fft_max.... files. 
+3. Composite features from different frequencies following our paper (Supplementary). We provide a funtion to generate features, you could set: args.task == 'generate_data' in the training.sh file, or specify when you train: `sh training.sh --task=generate_data`, for more details of feature generation, please check the function: `generate_tuh_data` in eeg_main.py file where there are some hyperparameters in it.
+
+Details refer to the [suplementary](https://static-content.springer.com/esm/art%3A10.1038%2Fs41598-022-23656-1/MediaObjects/41598_2022_23656_MOESM1_ESM.pdf)
 
 ---
 
@@ -62,6 +67,9 @@ To train compared models, chanage the `--task=ggn` to following settings:
 1. `sh training.sh --task=gnnnet`, training GNN based model.
 1. `sh training.sh --task=transformer`, training Transformer based model.
 
+## Training logs
+
+**Note that**, we use `nohup` to run the program in background, the log path is specified in `training.sh`.
 
 ## Turn on debug log mode
 to print more logs, set `--debug` in the command args.

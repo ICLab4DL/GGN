@@ -24,7 +24,6 @@ args/
 *.npy
 !shuffled_index.npy
 *.pkl
-adjs/
 # Distribution / packaging
 .Python
 build/
