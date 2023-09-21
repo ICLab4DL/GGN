@@ -14,7 +14,7 @@ runs/
 args_back/
 *.pth
 !ggn_best.pth
-*.json
+# *.json
 *.html
 # C extensions
 *.so
