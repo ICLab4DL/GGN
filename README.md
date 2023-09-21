@@ -41,7 +41,6 @@ Details refer to the [suplementary](https://static-content.springer.com/esm/art%
 ---
 
 
-
 ## Testing via trained model.
 
 the shuffled_index.npy stored the indices of training samples and testing samples of the best_models/ggn_best.pth (reported in the paper).

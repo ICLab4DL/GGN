@@ -11,7 +11,7 @@ best_models_copy/
 board_log/
 runs/
 .idea/
-args/
+args_back/
 *.pth
 !ggn_best.pth
 *.json

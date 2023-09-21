@@ -25,7 +25,6 @@ fi
 echo "start running tuh eeg_train!"
 
 
-
 training_tag=training_default_ggn
 
 nohup python -u $proj_path/eeg_main.py \
@@ -67,3 +66,5 @@ nohup python -u $proj_path/eeg_main.py \
 --fig_filename=$proj_path/figs/$training_tag \
 --best_model_save_path=$proj_path/best_models/$training_tag.pth \
 > $proj_path/logs/$training_tag.log 2>&1 &
+
+echo "check log at $proj_path/logs/$training_tag.log"
