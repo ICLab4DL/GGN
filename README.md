@@ -74,4 +74,4 @@ to print more logs, set `--debug` in the command args.
 
 ## Q&A
 
-**Message me if you have any questions: zhengdaoli (at) link (dot) cuhk (dot) edu.cn**
+**Message me if you have any questions about code or data: zhengdaoli (at) link (dot) cuhk (dot) edu.cn**
